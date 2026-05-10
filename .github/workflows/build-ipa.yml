@@ -1,0 +1,71 @@
+name: Build Unsigned IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_path:
+        description: "Optional path to an already-built .app bundle. Leave empty to build from Xcode."
+        required: false
+        default: ""
+      archive_path:
+        description: "Optional path to an existing .xcarchive. Leave empty to build from Xcode."
+        required: false
+        default: ""
+      workspace:
+        description: "Optional .xcworkspace path. Auto-detected when empty."
+        required: false
+        default: ""
+      project:
+        description: "Optional .xcodeproj path. Auto-detected when empty."
+        required: false
+        default: ""
+      scheme:
+        description: "Optional Xcode scheme. Auto-detected when empty."
+        required: false
+        default: ""
+      configuration:
+        description: "Xcode build configuration"
+        required: false
+        default: "Release"
+      ipa_name:
+        description: "Downloadable unsigned IPA filename"
+        required: false
+        default: "iPSX2-unsigned.ipa"
+
+jobs:
+  build-unsigned-ipa:
+    name: Build unsigned IPA on GitHub macOS
+    runs-on: macos-14
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Validate helper scripts
+        run: |
+          python3 -m unittest tests.test_package_ipa
+          python3 -m py_compile scripts/package_ipa.py
+          bash -n scripts/build_unsigned_ipa.sh
+
+      - name: Build unsigned IPA
+        shell: bash
+        env:
+          APP_PATH: ${{ inputs.app_path }}
+          ARCHIVE_PATH: ${{ inputs.archive_path }}
+          WORKSPACE: ${{ inputs.workspace }}
+          PROJECT: ${{ inputs.project }}
+          SCHEME: ${{ inputs.scheme }}
+          CONFIGURATION: ${{ inputs.configuration }}
+          IPA_NAME: ${{ inputs.ipa_name }}
+        run: scripts/build_unsigned_ipa.sh
+
+      - name: Upload unsigned IPA for download
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-ipa
+          path: artifacts/*.ipa
+          if-no-files-found: error
