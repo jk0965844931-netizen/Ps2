@@ -1,0 +1,134 @@
+name: Build Unsigned IPA
+run-name: Build unsigned IPA @ ${{ github.ref_name }} (${{ github.sha }})
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      source_repository:
+        description: "Original iPSX2 source repo to clone when this repo has no cpp/ source"
+        required: false
+        default: "jk0965844931-netizen/iPSX2-src"
+      source_ref:
+        description: "Optional branch, tag, or commit from source_repository"
+        required: false
+        default: ""
+      scheme:
+        description: "Xcode scheme to archive"
+        required: false
+        default: "iPSX2"
+      app_path:
+        description: "Optional path to an already-built .app bundle"
+        required: false
+        default: ""
+      archive_path:
+        description: "Optional path to an existing .xcarchive"
+        required: false
+        default: ""
+
+jobs:
+  build-ipa:
+    name: Build Unsigned iPSX2.ipa
+    runs-on: macos-14
+
+    env:
+      SOURCE_REPOSITORY: ${{ github.event.inputs.source_repository || 'jk0965844931-netizen/iPSX2-src' }}
+      SOURCE_REF: ${{ github.event.inputs.source_ref || '' }}
+      SCHEME: ${{ github.event.inputs.scheme || 'iPSX2' }}
+      APP_PATH: ${{ github.event.inputs.app_path || '' }}
+      ARCHIVE_PATH: ${{ github.event.inputs.archive_path || '' }}
+      IPA_NAME: iPSX2-unsigned.ipa
+      ARTIFACTS_DIR: ${{ github.workspace }}/artifacts
+      BUILD_DIR: ${{ github.workspace }}/build
+
+    steps:
+      - name: Checkout workflow helpers
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Print workflow revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Workflow repository: $GITHUB_REPOSITORY"
+          echo "Workflow ref: $GITHUB_REF"
+          echo "Workflow SHA: $GITHUB_SHA"
+          echo "Workspace: $GITHUB_WORKSPACE"
+          echo "If this run does not show this step, GitHub is still running an old workflow revision."
+
+      - name: Select latest Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          XCODE=$(ls /Applications | grep '^Xcode' | sort -V | tail -1)
+          test -n "$XCODE" || (echo "❌ No Xcode installation found" && exit 1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "/Applications/$XCODE/Contents/Developer"
+          xcodebuild -version
+          swift --version
+
+      - name: Install build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew update --quiet
+          brew install cmake xcbeautify || true
+
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.os }}-${{ runner.arch }}-${{ github.ref_name }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-
+          max-size: 2G
+
+      - name: Validate helper scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests.test_package_ipa
+          python3 -m py_compile scripts/package_ipa.py
+          bash -n scripts/build_unsigned_ipa.sh
+
+      - name: Build unsigned IPA
+        shell: bash
+        run: scripts/build_unsigned_ipa.sh
+
+      - name: Verify IPA structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          IPA_PATH="$ARTIFACTS_DIR/$IPA_NAME"
+          echo "=== IPA internal structure (first 35 entries) ==="
+          unzip -l "$IPA_PATH" | head -35
+          unzip -l "$IPA_PATH" | grep -q "Payload/.*\.app/" \
+            && echo "✅ App bundle found inside Payload" \
+            || (echo "❌ IPA is malformed" && exit 1)
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: iPSX2-unsigned-${{ github.run_number }}
+          path: ${{ env.ARTIFACTS_DIR }}/iPSX2-unsigned.ipa
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: ccache stats
+        if: always()
+        shell: bash
+        run: ccache --show-stats || true
+
+      - name: Upload build logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ github.run_number }}
+          path: |
+            /tmp/cmake_configure.log
+            ~/Library/Logs/DiagnosticReports/
+          retention-days: 7
+          if-no-files-found: ignore
