@@ -42,3 +42,33 @@ Run the unit tests:
 ```bash
 python3 -m unittest discover -s tests
 ```
+
+## GitHub Actions IPA output
+
+A GitHub Action cannot magically become an IPA by itself. An `.ipa` is a zip file
+containing `Payload/<AppName>.app`, so the workflow needs one of these inputs:
+
+1. an already-built `.app` bundle;
+2. an existing `.xcarchive`; or
+3. a real iOS Xcode project/workspace plus a scheme that can be archived on a macOS runner.
+
+This repository includes `.github/workflows/build-ipa.yml` for that flow. Run the
+manual **Build IPA** workflow and provide `app_path`, `archive_path`, or
+`workspace`/`project` plus `scheme`. The workflow uploads the generated `.ipa` as
+an artifact.
+
+For local packaging, use:
+
+```bash
+python3 scripts/package_ipa.py --app path/to/App.app --output artifacts/App.ipa
+```
+
+or:
+
+```bash
+python3 scripts/package_ipa.py --archive path/to/App.xcarchive --output artifacts/App.ipa
+```
+
+Unsigned IPAs are useful as CI artifacts, but installing on a physical iPhone or
+distributing through TestFlight normally requires Apple signing certificates,
+provisioning profiles, and a signed export step.
