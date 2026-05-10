@@ -1,26 +1,26 @@
-name: Build IPA
+name: Build Unsigned IPA
 
 on:
   workflow_dispatch:
     inputs:
       app_path:
-        description: "Optional path to an already-built .app bundle to package"
+        description: "Optional path to an already-built .app bundle. Leave empty to build from Xcode."
         required: false
         default: ""
       archive_path:
-        description: "Optional path to an existing .xcarchive to package"
+        description: "Optional path to an existing .xcarchive. Leave empty to build from Xcode."
         required: false
         default: ""
       workspace:
-        description: "Optional .xcworkspace path for xcodebuild archive"
+        description: "Optional .xcworkspace path. Auto-detected when empty."
         required: false
         default: ""
       project:
-        description: "Optional .xcodeproj path for xcodebuild archive"
+        description: "Optional .xcodeproj path. Auto-detected when empty."
         required: false
         default: ""
       scheme:
-        description: "Xcode scheme to archive when app_path/archive_path is not supplied"
+        description: "Optional Xcode scheme. Auto-detected when empty."
         required: false
         default: ""
       configuration:
@@ -28,27 +28,30 @@ on:
         required: false
         default: "Release"
       ipa_name:
-        description: "Artifact IPA filename"
+        description: "Downloadable unsigned IPA filename"
         required: false
-        default: "iPSX2.ipa"
+        default: "iPSX2-unsigned.ipa"
 
 jobs:
-  build-ipa:
-    name: Build or package IPA
+  build-unsigned-ipa:
+    name: Build unsigned IPA on GitHub macOS
     runs-on: macos-14
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-
-      - name: Validate packaging helper
-        run: python3 -m unittest tests.test_package_ipa
 
       - name: Select Xcode
         run: |
           sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
           xcodebuild -version
 
-      - name: Build or package IPA
+      - name: Validate helper scripts
+        run: |
+          python3 -m unittest tests.test_package_ipa
+          python3 -m py_compile scripts/package_ipa.py
+          bash -n scripts/build_unsigned_ipa.sh
+
+      - name: Build unsigned IPA
         shell: bash
         env:
           APP_PATH: ${{ inputs.app_path }}
@@ -58,48 +61,11 @@ jobs:
           SCHEME: ${{ inputs.scheme }}
           CONFIGURATION: ${{ inputs.configuration }}
           IPA_NAME: ${{ inputs.ipa_name }}
-        run: |
-          set -euo pipefail
-          mkdir -p artifacts build
+        run: scripts/build_unsigned_ipa.sh
 
-          if [[ -n "$APP_PATH" ]]; then
-            python3 scripts/package_ipa.py --app "$APP_PATH" --output "artifacts/$IPA_NAME"
-          elif [[ -n "$ARCHIVE_PATH" ]]; then
-            python3 scripts/package_ipa.py --archive "$ARCHIVE_PATH" --output "artifacts/$IPA_NAME"
-          else
-            if [[ -z "$SCHEME" ]]; then
-              cat <<'MSG' >&2
-No app_path/archive_path/scheme was provided.
-To produce an IPA, this workflow needs one of these:
-  1. app_path: a built .app bundle;
-  2. archive_path: a built .xcarchive; or
-  3. workspace/project + scheme: an Xcode target that can be archived.
-MSG
-              exit 2
-            fi
-
-            build_args=(-scheme "$SCHEME" -configuration "$CONFIGURATION" -sdk iphoneos -destination 'generic/platform=iOS')
-            if [[ -n "$WORKSPACE" ]]; then
-              build_args=(-workspace "$WORKSPACE" "${build_args[@]}")
-            elif [[ -n "$PROJECT" ]]; then
-              build_args=(-project "$PROJECT" "${build_args[@]}")
-            else
-              cat <<'MSG' >&2
-A scheme was provided, but no workspace or project was provided.
-Set the workflow_dispatch workspace or project input to the iOS Xcode project.
-MSG
-              exit 2
-            fi
-
-            xcodebuild archive "${build_args[@]}" \
-              -archivePath "$PWD/build/iPSX2.xcarchive" \
-              CODE_SIGNING_ALLOWED=NO
-            python3 scripts/package_ipa.py --archive "$PWD/build/iPSX2.xcarchive" --output "artifacts/$IPA_NAME"
-          fi
-
-      - name: Upload IPA artifact
+      - name: Upload unsigned IPA for download
         uses: actions/upload-artifact@v4
         with:
-          name: ipa
+          name: unsigned-ipa
           path: artifacts/*.ipa
           if-no-files-found: error

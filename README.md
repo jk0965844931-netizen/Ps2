@@ -43,32 +43,26 @@ Run the unit tests:
 python3 -m unittest discover -s tests
 ```
 
-## GitHub Actions IPA output
+## GitHub Actions unsigned IPA output
 
-A GitHub Action cannot magically become an IPA by itself. An `.ipa` is a zip file
-containing `Payload/<AppName>.app`, so the workflow needs one of these inputs:
+The **Build Unsigned IPA** workflow is set up for the common GitHub-hosted macOS
+flow: run the workflow manually, let GitHub use a `macos-14` runner with Xcode,
+archive the iOS target with code signing disabled, package the generated `.app`
+inside `Payload/`, and upload `iPSX2-unsigned.ipa` as a downloadable artifact.
 
-1. an already-built `.app` bundle;
-2. an existing `.xcarchive`; or
-3. a real iOS Xcode project/workspace plus a scheme that can be archived on a macOS runner.
+If the repository contains a single `.xcworkspace` or `.xcodeproj`, you can leave
+`workspace`, `project`, and `scheme` blank and the workflow will auto-detect the
+build container and first shared scheme. If auto-detection is wrong, rerun the
+workflow and provide the exact `workspace`/`project` and `scheme` inputs.
 
-This repository includes `.github/workflows/build-ipa.yml` for that flow. Run the
-manual **Build IPA** workflow and provide `app_path`, `archive_path`, or
-`workspace`/`project` plus `scheme`. The workflow uploads the generated `.ipa` as
-an artifact.
-
-For local packaging, use:
+The workflow also supports packaging a prebuilt app/archive:
 
 ```bash
 python3 scripts/package_ipa.py --app path/to/App.app --output artifacts/App.ipa
-```
-
-or:
-
-```bash
 python3 scripts/package_ipa.py --archive path/to/App.xcarchive --output artifacts/App.ipa
 ```
 
-Unsigned IPAs are useful as CI artifacts, but installing on a physical iPhone or
-distributing through TestFlight normally requires Apple signing certificates,
-provisioning profiles, and a signed export step.
+Unsigned IPAs are useful as CI artifacts and for sideloading workflows that sign
+later. Installing directly on a physical iPhone or distributing through TestFlight
+normally still requires Apple certificates, provisioning profiles, and a signed
+export step.

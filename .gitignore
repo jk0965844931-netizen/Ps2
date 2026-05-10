@@ -5,3 +5,9 @@ __pycache__/
 .mypy_cache/
 .coverage
 htmlcov/
+
+# Build artifacts
+build/
+artifacts/
+*.ipa
+*.xcarchive/
