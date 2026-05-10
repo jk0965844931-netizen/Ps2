@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Build artifacts
+build/
+artifacts/
+*.ipa
+*.xcarchive/
+
+# CI caches
+.ccache/
