@@ -11,3 +11,6 @@ build/
 artifacts/
 *.ipa
 *.xcarchive/
+
+# CI caches
+.ccache/

@@ -45,17 +45,37 @@ python3 -m unittest discover -s tests
 
 ## GitHub Actions unsigned IPA output
 
-The **Build Unsigned IPA** workflow is set up for the common GitHub-hosted macOS
-flow: run the workflow manually, let GitHub use a `macos-14` runner with Xcode,
-archive the iOS target with code signing disabled, package the generated `.app`
-inside `Payload/`, and upload `iPSX2-unsigned.ipa` as a downloadable artifact.
+The **Build Unsigned IPA** workflow is now an upstream-style macOS build for
+`iPSX2-src`, not just a packager for this lightweight wrapper repository. It runs
+on `push`, `pull_request`, and manual `workflow_dispatch`. The run name includes
+the branch and commit SHA, and the first steps print the workflow revision so it
+is obvious when GitHub is still running an old workflow file.
 
-If the repository contains a single `.xcworkspace` or `.xcodeproj`, you can leave
-`workspace`, `project`, and `scheme` blank and the workflow will auto-detect the
-build container and first shared scheme. If auto-detection is wrong, rerun the
-workflow and provide the exact `workspace`/`project` and `scheme` inputs.
+The workflow does this:
 
-The workflow also supports packaging a prebuilt app/archive:
+1. checks out this repository for the helper scripts;
+2. uses an existing `cpp/CMakeLists.txt` if the workflow is copied into the real
+   source repo, otherwise clones `jk0965844931-netizen/iPSX2-src`;
+3. generates an iOS Xcode project from `cpp/` with CMake when no checked-in
+   `.xcodeproj`/`.xcworkspace` exists;
+4. archives the `iPSX2` scheme unsigned with code signing disabled;
+5. packages the archive as `Payload/*.app` inside `iPSX2-unsigned.ipa`;
+6. verifies the IPA structure and uploads it as `iPSX2-unsigned-<run number>`.
+
+If the upstream branch, repo, or scheme changes, rerun the manual workflow and
+set `source_repository`, `source_ref`, or `scheme`.
+
+### Troubleshooting stale workflow runs
+
+If the Actions log still fails with a message like
+`working directory '/Users/runner/work/Ps2/Ps2/cpp' ... No such file or directory`,
+the run is using an older workflow revision. The fixed workflow prints
+**Print workflow revision** before Xcode setup and then calls
+`scripts/build_unsigned_ipa.sh`; it does not set a YAML-level `working-directory`
+to `cpp/`. Merge this branch to `main`, or manually choose this branch in
+**Run workflow**, then run **Build Unsigned IPA** again.
+
+The helper script still supports packaging a prebuilt app/archive locally:
 
 ```bash
 python3 scripts/package_ipa.py --app path/to/App.app --output artifacts/App.ipa
