@@ -56,8 +56,8 @@ The workflow does this:
 1. checks out this repository for the helper scripts;
 2. uses an existing `cpp/CMakeLists.txt` if the workflow is copied into the real
    source repo, otherwise clones `jk0965844931-netizen/iPSX2-src`;
-3. generates an iOS Xcode project from `cpp/` with CMake when no checked-in
-   `.xcodeproj`/`.xcworkspace` exists;
+3. generates the top-level iOS Xcode project from `cpp/` with CMake and ignores
+   vendor projects such as `cpp/3rdparty/SDL3/Xcode/SDL/SDL.xcodeproj`;
 4. archives the `iPSX2` scheme unsigned with code signing disabled;
 5. packages the archive as `Payload/*.app` inside `iPSX2-unsigned.ipa`;
 6. verifies the IPA structure and uploads it as `iPSX2-unsigned-<run number>`.

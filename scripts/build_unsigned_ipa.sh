@@ -37,20 +37,6 @@ fi
 if [[ "$BUILD_DIR" != /* ]]; then
   BUILD_DIR="$REPO_ROOT/$BUILD_DIR"
 fi
-#   APP_PATH       Optional path to an already-built .app bundle.
-#   ARCHIVE_PATH   Optional path to an existing .xcarchive.
-#   WORKSPACE      Optional .xcworkspace path. Auto-detected when empty.
-#   PROJECT        Optional .xcodeproj path. Auto-detected when empty.
-#   SCHEME         Optional Xcode scheme. Auto-detected when empty.
-#   CONFIGURATION  Xcode configuration, defaults to Release.
-#   IPA_NAME       Output IPA filename, defaults to iPSX2-unsigned.ipa.
-
-set -euo pipefail
-
-CONFIGURATION="${CONFIGURATION:-Release}"
-IPA_NAME="${IPA_NAME:-iPSX2-unsigned.ipa}"
-ARTIFACTS_DIR="${ARTIFACTS_DIR:-artifacts}"
-BUILD_DIR="${BUILD_DIR:-build}"
 
 mkdir -p "$ARTIFACTS_DIR" "$BUILD_DIR"
 
@@ -79,11 +65,18 @@ first_match() {
     -path './build' -prune -o \
     -path './artifacts' -prune -o \
     -path './ipa-staging' -prune -o \
+    -path './cpp/3rdparty' -prune -o \
+    -path './3rdparty' -prune -o \
+    -path './Pods' -prune -o \
     -name "$pattern" -print | sort | head -n 1
 }
 
+has_explicit_xcode_container() {
+  [[ -n "${WORKSPACE:-}" || -n "${PROJECT:-}" ]]
+}
+
 has_xcode_container() {
-  [[ -n "${WORKSPACE:-}" || -n "${PROJECT:-}" ]] && return 0
+  has_explicit_xcode_container && return 0
   [[ -n "$(first_match '*.xcworkspace')" || -n "$(first_match '*.xcodeproj')" ]]
 }
 
@@ -130,13 +123,21 @@ prepare_source_tree() {
 }
 
 generate_xcode_project_if_needed() {
-  if has_xcode_container; then
+  if has_explicit_xcode_container; then
+    log "Using explicit Xcode container; skipping CMake generation"
     return
   fi
 
-  [[ -f cpp/CMakeLists.txt ]] || fail "missing cpp/CMakeLists.txt after source preparation"
+  if [[ ! -f cpp/CMakeLists.txt ]]; then
+    has_xcode_container && return
+    fail "missing cpp/CMakeLists.txt after source preparation"
+  fi
 
-  log "No checked-in Xcode project found; generating one with CMake from cpp/"
+  # iPSX2-src contains vendor Xcode projects under cpp/3rdparty (for example
+  # SDL). Those projects do not contain the iPSX2 scheme, so always generate the
+  # top-level iOS project from cpp/CMakeLists.txt unless the user explicitly set
+  # WORKSPACE or PROJECT.
+  log "Generating top-level iPSX2 Xcode project with CMake from cpp/"
   set -o pipefail
   cmake -S "$PWD/cpp" -B "$BUILD_DIR" \
     -G Xcode \
