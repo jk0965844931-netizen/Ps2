@@ -37,6 +37,20 @@ fi
 if [[ "$BUILD_DIR" != /* ]]; then
   BUILD_DIR="$REPO_ROOT/$BUILD_DIR"
 fi
+#   APP_PATH       Optional path to an already-built .app bundle.
+#   ARCHIVE_PATH   Optional path to an existing .xcarchive.
+#   WORKSPACE      Optional .xcworkspace path. Auto-detected when empty.
+#   PROJECT        Optional .xcodeproj path. Auto-detected when empty.
+#   SCHEME         Optional Xcode scheme. Auto-detected when empty.
+#   CONFIGURATION  Xcode configuration, defaults to Release.
+#   IPA_NAME       Output IPA filename, defaults to iPSX2-unsigned.ipa.
+
+set -euo pipefail
+
+CONFIGURATION="${CONFIGURATION:-Release}"
+IPA_NAME="${IPA_NAME:-iPSX2-unsigned.ipa}"
+ARTIFACTS_DIR="${ARTIFACTS_DIR:-artifacts}"
+BUILD_DIR="${BUILD_DIR:-build}"
 
 mkdir -p "$ARTIFACTS_DIR" "$BUILD_DIR"
 
